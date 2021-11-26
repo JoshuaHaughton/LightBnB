@@ -115,8 +115,72 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
  const getAllProperties = (options, limit = 10) => {
+  const queryParams = [];
+    let queryString = `
+    SELECT * 
+    FROM properties
+    JOIN users ON owner_id = users.id
+    JOIN property_reviews ON property_id = properties.id`;
+
+    // for (key in options) {
+    //   if (typeof key !== 'undefined') {
+    //     queryParams.push(options[key])
+    //     queryString =+ `WHERE city LIKE $${}`
+    //   }
+    // }
+    
+
+    if (options.city) {
+      if (options.city !== '') {
+      queryParams.push(`%${options.city}%`);
+      queryString += ` 
+      WHERE city LIKE $${queryParams.length} `;
+      }
+    }
+
+    if(options.owner_id) {
+     if(options.owner_id !== '') {
+      queryParams.push(`%${options.owner_id}%`);
+      queryString += `AND owner_id LIKE $${queryParams.length}`;
+     }
+    } 
+    
+    if(options['minimum_price_per_night']) {
+      if(Number(options['minimum_price_per_night'])) {
+      
+      queryParams.push(`${Number(options['minimum_price_per_night']) * 100}`);
+      queryString += `\nAND cost_per_night > $${(queryParams.length)}`;
+    }
+    } 
+    
+    if(options.maximum_price_per_night) {
+      if(Number(options.maximum_price_per_night)) {
+      queryParams.push(`${Number((options.maximum_price_per_night))* 100}`);
+      queryString += `
+      AND cost_per_night < $${(queryParams.length)}`;
+    }
+    }
+    
+    if(options.minimum_rating) {
+      if(Number(options.minimum_rating)) {
+      queryParams.push(`${Number(options.minimum_rating)}`);
+      queryString += `
+      AND property_reviews.rating >= $${queryParams.length}`;
+    }
+    }
+
+    queryParams.push(limit);
+    queryString += `
+    GROUP BY properties.id, users.id, property_reviews.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};`;
+
+    console.log('QS: ', queryString);
+    console.log('QP: ', queryParams);
+    console.log('options: ', options);
+
   return pool
-    .query(`SELECT * FROM properties LIMIT $1;`, [limit])
+    .query(queryString, queryParams)
     .then((result) => result.rows)
     .catch((err) => {
       console.log(err.message);
